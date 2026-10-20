@@ -27,6 +27,7 @@ public class MainActivity extends Activity {
   String activeArea="",activeReferrer="";
   Button voiceButton;
   HybridSpeechEngine speechEngine;
+  final LocalCommandBrain localBrain=new LocalCommandBrain();
   static final int MIC_PERMISSION=207;
   TextView dashboard, voiceStatus;
   Button manualSave;
@@ -115,6 +116,11 @@ public class MainActivity extends Activity {
       for(String raw:parts){
         String item=raw.trim();
         if(item.isEmpty())continue;
+        LocalCommandBrain.Result parsed=localBrain.interpret(item);
+        if(parsed.action.equals("stop")){voiceSession=false;continue;}
+        if(parsed.action.equals("set_area")){activeArea=parsed.area;area.setText(activeArea);continue;}
+        if(parsed.action.equals("set_referrer")){activeReferrer=parsed.referrer;referrer.setText(activeReferrer);continue;}
+        if(parsed.action.equals("needs_confirmation"))continue;
         if(normalizeArabic(item).matches("^(انتهي|وقف|وقف التسجيل|ايقاف التسجيل|خلاص|تم|توقف)$")){voiceSession=false;continue;}
         if(item.matches("^(انتهى|انتهي|وقف|وقف التسجيل|إيقاف التسجيل|خلاص|تم|توقف)$")){
           voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");continue;
