@@ -28,7 +28,7 @@ public class MainActivity extends Activity {
   Button voiceButton;
   HybridSpeechEngine speechEngine;
   static final int MIC_PERMISSION=207;
-  TextView dashboard;
+  TextView dashboard, voiceStatus;
   Button manualSave;
   String reportMode="all",reportFilter="";
   final Handler voiceHandler = new Handler(Looper.getMainLooper());
@@ -44,6 +44,7 @@ public class MainActivity extends Activity {
     dashboard=new TextView(this);dashboard.setTextSize(17);dashboard.setTextColor(Color.rgb(20,91,76));dashboard.setPadding(18,20,18,20);
     dashboard.setBackgroundColor(Color.rgb(225,241,235));root.addView(dashboard);
     voiceButton=button("🎙 ابدأ الإملاء الصوتي",()->toggleVoice());voiceButton.setTextSize(19);root.addView(voiceButton);
+    voiceStatus=new TextView(this);voiceStatus.setText("جاهز للاستماع");voiceStatus.setTextSize(14);voiceStatus.setPadding(6,8,6,12);root.addView(voiceStatus);
     TextView tip=new TextView(this);tip.setText("مثال: حارة خطو، من طرف وليد، ثم اذكر الأسماء");tip.setPadding(5,8,5,22);root.addView(tip);
     Button addToggle=button("＋ إضافة اسم يدوياً",()->{int visibility=name.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE;name.setVisibility(visibility);area.setVisibility(visibility);referrer.setVisibility(visibility);notes.setVisibility(visibility);manualSave.setVisibility(visibility);});
     root.addView(addToggle);
@@ -76,8 +77,8 @@ public class MainActivity extends Activity {
     }
     if(speechEngine==null)speechEngine=new HybridSpeechEngine(this,new HybridSpeechEngine.Listener(){
       public void onText(String t){reviewSpeech(t);}
-      public void onStatus(String status){if(voiceButton!=null)voiceButton.setContentDescription(status);}
-      public void onStopped(){if(voiceButton!=null)voiceButton.setText("🎙 ابدأ الإملاء الصوتي");}
+      public void onStatus(String status){if(voiceStatus!=null)voiceStatus.setText(status);}
+      public void onStopped(){if(voiceButton!=null)voiceButton.setText("🎙 ابدأ الإملاء الصوتي");if(voiceStatus!=null)voiceStatus.setText("متوقف");}
     });
     speechEngine.start();if(speechEngine.isRunning())voiceButton.setText("■ إيقاف الإملاء");
   }
@@ -87,7 +88,9 @@ public class MainActivity extends Activity {
     else if(request==MIC_PERMISSION)Toast.makeText(this,"يلزم السماح باستخدام الميكروفون",Toast.LENGTH_LONG).show();
   }
   void reviewSpeech(String transcript){
+    if(transcript==null||transcript.trim().isEmpty())return;
     if(speechEngine!=null&&speechEngine.isRunning())speechEngine.stop();
+    if(voiceStatus!=null)voiceStatus.setText("راجع النص ثم اختر اعتماد وحفظ");
     final EditText correction=new EditText(this);
     correction.setText(transcript);correction.setMinLines(3);correction.setMaxLines(8);
     new AlertDialog.Builder(this).setTitle("مراجعة الكلام قبل الحفظ")
