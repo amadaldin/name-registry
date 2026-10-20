@@ -26,6 +26,9 @@ public class MainActivity extends Activity {
   boolean voiceSession = false;
   String activeArea="",activeReferrer="";
   Button voiceButton;
+  TextView dashboard;
+  Button manualSave;
+  String reportMode="all",reportFilter="";
   final Handler voiceHandler = new Handler(Looper.getMainLooper());
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
@@ -33,20 +36,27 @@ public class MainActivity extends Activity {
     root = new LinearLayout(this); root.setOrientation(1); root.setPadding(20,20,20,20);
     root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     ScrollView scroll = new ScrollView(this); scroll.addView(root); setContentView(scroll);
-    TextView title = new TextView(this); title.setText("سجل الأسماء حسب الحارات"); title.setTextSize(24); root.addView(title);
-    name = field("اسم الشخص"); area = field("الحارة"); referrer = field("من طرف (اختياري)"); notes = field("ملاحظات (اختياري)");
-    LinearLayout buttons = new LinearLayout(this);
-    Button save = button("حفظ الاسم", () -> save());
-    voiceButton = button("ابدأ الإملاء المتتابع", () -> toggleVoice());
-    buttons.addView(save); buttons.addView(voiceButton); root.addView(buttons);
-    search = field("بحث بالاسم أو الحارة أو المُحيل");
+    root.setBackgroundColor(Color.rgb(246,249,248));
+    TextView title=new TextView(this);title.setText("سجل الأسماء");title.setTextSize(28);title.setTextColor(Color.rgb(19,83,73));title.setTypeface(Typeface.DEFAULT_BOLD);root.addView(title);
+    TextView subtitle=new TextView(this);subtitle.setText("إدارة الأسماء والحارات والمُحيلين");subtitle.setTextSize(14);subtitle.setPadding(0,0,0,20);root.addView(subtitle);
+    dashboard=new TextView(this);dashboard.setTextSize(17);dashboard.setTextColor(Color.rgb(20,91,76));dashboard.setPadding(18,20,18,20);
+    dashboard.setBackgroundColor(Color.rgb(225,241,235));root.addView(dashboard);
+    voiceButton=button("🎙 ابدأ الإملاء الصوتي",()->toggleVoice());voiceButton.setTextSize(19);root.addView(voiceButton);
+    TextView tip=new TextView(this);tip.setText("مثال: حارة خطو، من طرف وليد، ثم اذكر الأسماء");tip.setPadding(5,8,5,22);root.addView(tip);
+    Button addToggle=button("＋ إضافة اسم يدوياً",()->{int visibility=name.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE;name.setVisibility(visibility);area.setVisibility(visibility);referrer.setVisibility(visibility);notes.setVisibility(visibility);manualSave.setVisibility(visibility);});
+    root.addView(addToggle);
+    name=field("اسم الشخص");area=field("الحارة (اختياري)");referrer=field("من طرف (اختياري)");notes=field("ملاحظات (اختياري)");
+    manualSave=button("حفظ الاسم",()->save());root.addView(manualSave);
+    name.setVisibility(View.GONE);area.setVisibility(View.GONE);referrer.setVisibility(View.GONE);notes.setVisibility(View.GONE);manualSave.setVisibility(View.GONE);
+    search=field("بحث بالاسم أو الحارة أو من طرف");
     search.addTextChangedListener(new TextWatcher(){
-      public void beforeTextChanged(CharSequence s,int st,int c,int a){}
-      public void onTextChanged(CharSequence s,int st,int before,int count){ refresh(); }
+      public void beforeTextChanged(CharSequence t,int start,int count,int after){}
+      public void onTextChanged(CharSequence t,int start,int before,int count){refresh();}
       public void afterTextChanged(Editable e){}
     });
-    Button print = button("مشاركة / طباعة السجل", () -> share()); root.addView(print);
-    rows = new LinearLayout(this); rows.setOrientation(1); root.addView(rows);
+    Button print=button("تصدير PDF حسب التصنيف",()->chooseExport());root.addView(print);
+    TextView heading=new TextView(this);heading.setText("الأسماء المسجلة");heading.setTextSize(21);heading.setTypeface(Typeface.DEFAULT_BOLD);heading.setPadding(0,22,0,10);root.addView(heading);
+    rows=new LinearLayout(this);rows.setOrientation(1);root.addView(rows);
     refresh();
   }
   EditText field(String hint) { EditText e=new EditText(this); e.setHint(hint); e.setSingleLine(true); root.addView(e); return e; }
@@ -124,17 +134,18 @@ public class MainActivity extends Activity {
   @Override protected void onDestroy(){voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
   void refresh(){
     if(rows==null)return;
+    if(dashboard!=null)dashboard.setText("الأسماء: "+db.count()+"   |   الحارات: "+db.distinct("area").length+"   |   المُحيلون: "+db.distinct("referrer").length);
     rows.removeAllViews();
     Cursor c=db.list(search.getText().toString());
     try {while(c.moveToNext()){
       final long id=c.getLong(0);
       final String n=c.getString(1),a=c.getString(2),r=c.getString(3),note=c.getString(4);
-      LinearLayout card=new LinearLayout(this);card.setOrientation(1);card.setPadding(8,12,8,12);
-      TextView label=new TextView(this);label.setText(n+(a.isEmpty()?"":" — "+a)+(r.isEmpty()?"":"\nمن طرف: "+r)+(note.isEmpty()?"":"\nملاحظات: "+note));label.setTextSize(18);card.addView(label);
+      LinearLayout card=new LinearLayout(this);card.setOrientation(1);card.setPadding(18,18,18,18);card.setBackgroundColor(Color.WHITE);
+      TextView label=new TextView(this);label.setText(n+(a.isEmpty()?"":" — "+a)+(r.isEmpty()?"":"\nمن طرف: "+r)+(note.isEmpty()?"":"\nملاحظات: "+note));label.setTextSize(18);label.setTextColor(Color.rgb(28,57,52));card.addView(label);
       LinearLayout actions=new LinearLayout(this);
       actions.addView(button("تعديل / نقل",()->edit(id,n,a,r,note)));
       actions.addView(button("حذف",()->new AlertDialog.Builder(this).setMessage("حذف "+n+"؟").setPositiveButton("حذف",(d,w)->{db.delete(id);refresh();}).setNegativeButton("إلغاء",null).show()));
-      card.addView(actions);rows.addView(card);
+      card.addView(actions);rows.addView(card);TextView gap=new TextView(this);gap.setHeight(12);rows.addView(gap);
     }} finally{c.close();}
   }
   void edit(long id,String n,String a,String r,String note){
@@ -147,6 +158,17 @@ public class MainActivity extends Activity {
       .setPositiveButton("حفظ",(d,w)->{if(!nn.getText().toString().trim().isEmpty()){db.update(id,nn.getText().toString().trim(),aa.getText().toString().trim(),rr.getText().toString().trim(),nt.getText().toString().trim());refresh();}})
       .setNegativeButton("إلغاء",null).show();
   }
+  void chooseExport(){
+    String[] options={"السجل الكامل","حسب الحارة","حسب من طرف"};
+    new AlertDialog.Builder(this).setTitle("نوع التقرير").setItems(options,(dialog,which)->{
+      reportMode=which==1?"area":which==2?"referrer":"all";
+      if(which==0){reportFilter="";share();return;}
+      String[] values=db.distinct(which==1?"area":"referrer");
+      if(values.length==0){Toast.makeText(this,"لا توجد بيانات لهذا التصنيف",Toast.LENGTH_SHORT).show();return;}
+      String[] choices=new String[values.length+1];choices[0]="جميع "+(which==1?"الحارات":"المُحيلين");System.arraycopy(values,0,choices,1,values.length);
+      new AlertDialog.Builder(this).setTitle("اختر التصنيف").setItems(choices,(d,index)->{reportFilter=index==0?"":values[index-1];share();}).show();
+    }).show();
+  }
   void share(){
     PdfDocument pdf=new PdfDocument();
     try{
@@ -158,6 +180,9 @@ public class MainActivity extends Activity {
       try{
         while(c.moveToNext()){
           String n=c.getString(1),a=c.getString(2),r=c.getString(3),note=c.getString(4);
+          if(!reportFilter.isEmpty()&&!(reportMode.equals("area")?a:r).equals(reportFilter))continue;
+          if(reportMode.equals("referrer")){String temp=a;a=r;r=temp;}
+          if(reportMode.equals("all"))r="السجل الكامل";
           if(a.isEmpty())a="غير محددة";
           if(r.isEmpty())r="بدون مُحيل";
           groups.computeIfAbsent(a,k->new java.util.TreeMap<>())
@@ -176,13 +201,13 @@ public class MainActivity extends Activity {
           page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,++pageNum).create());
           canvas=page.getCanvas();canvas.drawColor(Color.WHITE);
           paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextSize(21);
-          drawRtl(canvas,"سجل الأسماء حسب الحارات",paint,40);
+          drawRtl(canvas,reportMode.equals("referrer")?"سجل الأسماء حسب المُحيل":reportMode.equals("area")?"سجل الأسماء حسب الحارات":"السجل الكامل للأسماء",paint,40);
           paint.setTypeface(Typeface.DEFAULT);paint.setTextSize(12);
           drawRtl(canvas,"إجمالي الأسماء: "+total+"   |   الصفحة: "+pageNum,paint,78);
           y=130;
         }
         paint.setColor(Color.rgb(18,102,83));paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextSize(17);
-        y+=drawRtl(canvas,"الحارة: "+areaEntry.getKey()+" — "+areaCount+" أسماء",paint,y)+18;
+        y+=drawRtl(canvas,(reportMode.equals("referrer")?"من طرف: ":"الحارة: ")+areaEntry.getKey()+" — "+areaCount+" أسماء",paint,y)+18;
         paint.setColor(Color.rgb(35,49,54));paint.setTextSize(13);
         for(java.util.Map.Entry<String,java.util.ArrayList<String>> refEntry:areaEntry.getValue().entrySet()){
           if(y>690){
@@ -193,7 +218,7 @@ public class MainActivity extends Activity {
             y+=drawRtl(canvas,"الحارة: "+areaEntry.getKey()+" (تابع)",paint,y)+18;
           }
           paint.setTypeface(Typeface.DEFAULT_BOLD);
-          y+=drawRtl(canvas,"من طرف: "+refEntry.getKey()+" — "+refEntry.getValue().size()+" أسماء",paint,y)+12;
+          y+=drawRtl(canvas,(reportMode.equals("referrer")?"الحارة: ":reportMode.equals("all")?"المجموعة: ":"من طرف: ")+refEntry.getKey()+" — "+refEntry.getValue().size()+" أسماء",paint,y)+12;
           paint.setTypeface(Typeface.DEFAULT);
           int index=0;
           for(String entry:refEntry.getValue()){
@@ -233,6 +258,8 @@ public class MainActivity extends Activity {
     return layout.getHeight();
   }
   static class Db extends SQLiteOpenHelper {
+    int count(){Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM people",null);try{return c.moveToFirst()?c.getInt(0):0;}finally{c.close();}}
+    String[] distinct(String column){if(!column.equals("area")&&!column.equals("referrer"))return new String[0];ArrayList<String> a=new ArrayList<>();Cursor c=getReadableDatabase().rawQuery("SELECT DISTINCT "+column+" FROM people WHERE TRIM("+column+") != '' ORDER BY "+column,null);try{while(c.moveToNext())a.add(c.getString(0));}finally{c.close();}return a.toArray(new String[0]);}
     Db(Context c){super(c,"names.db",null,2);}
     @Override public void onCreate(SQLiteDatabase d){d.execSQL("CREATE TABLE people (_id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,area TEXT NOT NULL,referrer TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '')");}
     @Override public void onUpgrade(SQLiteDatabase d,int old,int next){if(old<2)d.execSQL("ALTER TABLE people ADD COLUMN notes TEXT NOT NULL DEFAULT ''");}
