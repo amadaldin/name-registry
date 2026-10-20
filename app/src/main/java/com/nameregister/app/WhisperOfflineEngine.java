@@ -21,6 +21,8 @@ public final class WhisperOfflineEngine {
  private volatile boolean cancelled;
  private volatile AudioRecord recorder;
  private volatile boolean busy=false;
+ private long cachedContext=0;
+ private static final int RECORD_SECONDS=6;
  public WhisperOfflineEngine(Context c,Listener l){context=c.getApplicationContext();listener=l;}
  private void status(String s){main.post(()->listener.status(s));}
  private void error(String s){main.post(()->listener.error(s));}
@@ -64,8 +66,8 @@ public final class WhisperOfflineEngine {
     recorder=ar;
     if(ar.getState()!=AudioRecord.STATE_INITIALIZED)throw new IOException("تعذر تشغيل الميكروفون");
     ByteArrayOutputStream pcm=new ByteArrayOutputStream();
-    ar.startRecording();status("تحدث الآن — التسجيل لمدة 8 ثوانٍ");
-    byte[] bytes=new byte[buffer];long end=System.currentTimeMillis()+8000;
+    ar.startRecording();status("تحدث الآن — التسجيل لمدة 6 ثوانٍ");
+    byte[] bytes=new byte[buffer];long end=System.currentTimeMillis()+RECORD_SECONDS*1000L;
     while(!cancelled&&System.currentTimeMillis()<end){
      short[] samples=new short[buffer/2];int n=ar.read(samples,0,samples.length);
      if(n<0)throw new IOException("خطأ في قراءة الصوت "+n);
@@ -78,7 +80,8 @@ public final class WhisperOfflineEngine {
     for(int i=0;i<audio.length;i++){int lo=raw[i*2]&255,hi=raw[i*2+1];audio[i]=(short)((hi<<8)|lo)/32768f;}
     status("Whisper يحلل الصوت محلياً...");
     status("جار تحميل مكتبة Whisper والنموذج...");
-    ptr=WhisperLib.initContext(modelFile().getAbsolutePath());
+    if(cachedContext==0)cachedContext=WhisperLib.initContext(modelFile().getAbsolutePath());
+    ptr=cachedContext;
     if(ptr==0)throw new IOException("فشل تحميل النموذج");
     WhisperLib.fullTranscribe(ptr,Math.max(2,Math.min(4,Runtime.getRuntime().availableProcessors())),audio);
     StringBuilder text=new StringBuilder();
@@ -86,8 +89,9 @@ public final class WhisperOfflineEngine {
     String result=text.toString().trim();
     main.post(()->listener.result(result));
    }catch(Throwable e){error("Whisper: "+e.getClass().getSimpleName()+": "+e.getMessage());}
-   finally{if(ptr!=0){try{WhisperLib.freeContext(ptr);}catch(Throwable ignored){}}busy=false;AudioRecord r=recorder;if(r!=null){try{r.stop();}catch(Exception ignored){}r.release();recorder=null;}}
+   finally{busy=false;AudioRecord r=recorder;if(r!=null){try{r.stop();}catch(Exception ignored){}r.release();recorder=null;}}
   });
  }
  public void stop(){cancelled=true;AudioRecord r=recorder;if(r!=null){try{r.stop();}catch(Exception ignored){}}}
+ public void close(){stop();worker.execute(()->{if(cachedContext!=0){try{WhisperLib.freeContext(cachedContext);}catch(Throwable ignored){}cachedContext=0;}});worker.shutdown();}
 }
