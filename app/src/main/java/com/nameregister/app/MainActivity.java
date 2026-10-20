@@ -149,35 +149,68 @@ public class MainActivity extends Activity {
   }
   void share(){
     PdfDocument pdf=new PdfDocument();
-    try {
+    try{
       File folder=new File(getCacheDir(),"reports");if(!folder.exists())folder.mkdirs();
       File output=new File(folder,"name-register.pdf");
-      TextPaint paint=new TextPaint(3);paint.setColor(Color.BLACK);paint.setTextSize(13);
+      TextPaint paint=new TextPaint(3);paint.setColor(Color.rgb(35,49,54));paint.setTextSize(13);
+      java.util.TreeMap<String,java.util.TreeMap<String,java.util.ArrayList<String>>> groups=new java.util.TreeMap<>();
       Cursor c=db.list("");
-      PdfDocument.Page page=null;Canvas canvas=null;int y=75,pageNum=0;
-      String lastArea=null;
-      try {
+      try{
         while(c.moveToNext()){
           String n=c.getString(1),a=c.getString(2),r=c.getString(3),note=c.getString(4);
-          String group=a.isEmpty()?"غير محددة":a;
-          if(page==null||y>740){
-            if(page!=null)pdf.finishPage(page);
-            page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,++pageNum).create());
-            canvas=page.getCanvas();canvas.drawColor(Color.WHITE);
-            paint.setTextSize(20);paint.setTypeface(Typeface.DEFAULT_BOLD);
-            drawRtl(canvas,"سجل الأسماء حسب الحارات",paint,35);
-            paint.setTextSize(13);paint.setTypeface(Typeface.DEFAULT);
-            y=90;lastArea=null;
-          }
-          if(!group.equals(lastArea)){
-            paint.setTypeface(Typeface.DEFAULT_BOLD);
-            y+=drawRtl(canvas,"الحارة: "+group,paint,y)+12;
-            paint.setTypeface(Typeface.DEFAULT);lastArea=group;
-          }
-          String entry=n+(r.isEmpty()?"":" | من طرف: "+r)+(note.isEmpty()?"":" | ملاحظات: "+note);
-          y+=drawRtl(canvas,entry,paint,y)+15;
+          if(a.isEmpty())a="غير محددة";
+          if(r.isEmpty())r="بدون مُحيل";
+          groups.computeIfAbsent(a,k->new java.util.TreeMap<>())
+            .computeIfAbsent(r,k->new java.util.ArrayList<>())
+            .add(n+(note.isEmpty()?"":" — ملاحظات: "+note));
         }
       }finally{c.close();}
+      PdfDocument.Page page=null;Canvas canvas=null;int y=80,pageNum=0,total=0;
+      for(java.util.TreeMap<String,java.util.ArrayList<String>> refs:groups.values())
+        for(java.util.ArrayList<String> names:refs.values())total+=names.size();
+      for(java.util.Map.Entry<String,java.util.TreeMap<String,java.util.ArrayList<String>>> areaEntry:groups.entrySet()){
+        int areaCount=0;
+        for(java.util.ArrayList<String> names:areaEntry.getValue().values())areaCount+=names.size();
+        if(page==null||y>685){
+          if(page!=null)pdf.finishPage(page);
+          page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,++pageNum).create());
+          canvas=page.getCanvas();canvas.drawColor(Color.WHITE);
+          paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextSize(21);
+          drawRtl(canvas,"سجل الأسماء حسب الحارات",paint,40);
+          paint.setTypeface(Typeface.DEFAULT);paint.setTextSize(12);
+          drawRtl(canvas,"إجمالي الأسماء: "+total+"   |   الصفحة: "+pageNum,paint,78);
+          y=130;
+        }
+        paint.setColor(Color.rgb(18,102,83));paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextSize(17);
+        y+=drawRtl(canvas,"الحارة: "+areaEntry.getKey()+" — "+areaCount+" أسماء",paint,y)+18;
+        paint.setColor(Color.rgb(35,49,54));paint.setTextSize(13);
+        for(java.util.Map.Entry<String,java.util.ArrayList<String>> refEntry:areaEntry.getValue().entrySet()){
+          if(y>690){
+            pdf.finishPage(page);
+            page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,++pageNum).create());
+            canvas=page.getCanvas();canvas.drawColor(Color.WHITE);y=60;
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            y+=drawRtl(canvas,"الحارة: "+areaEntry.getKey()+" (تابع)",paint,y)+18;
+          }
+          paint.setTypeface(Typeface.DEFAULT_BOLD);
+          y+=drawRtl(canvas,"من طرف: "+refEntry.getKey()+" — "+refEntry.getValue().size()+" أسماء",paint,y)+12;
+          paint.setTypeface(Typeface.DEFAULT);
+          int index=0;
+          for(String entry:refEntry.getValue()){
+            if(y>755){
+              pdf.finishPage(page);
+              page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,++pageNum).create());
+              canvas=page.getCanvas();canvas.drawColor(Color.WHITE);y=60;
+              paint.setTypeface(Typeface.DEFAULT_BOLD);
+              y+=drawRtl(canvas,"الحارة: "+areaEntry.getKey()+" | من طرف: "+refEntry.getKey()+" (تابع)",paint,y)+18;
+              paint.setTypeface(Typeface.DEFAULT);
+            }
+            y+=drawRtl(canvas,(++index)+". "+entry,paint,y)+10;
+          }
+          y+=16;
+        }
+        y+=16;
+      }
       if(page==null){
         page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
         canvas=page.getCanvas();canvas.drawColor(Color.WHITE);
