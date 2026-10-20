@@ -27,6 +27,7 @@ public class MainActivity extends Activity {
   String activeArea="",activeReferrer="";
   Button voiceButton;
   HybridSpeechEngine speechEngine;
+  WhisperOfflineEngine whisperEngine;
   final LocalCommandBrain localBrain=new LocalCommandBrain();
   static final int MIC_PERMISSION=207;
   TextView dashboard, voiceStatus;
@@ -44,6 +45,18 @@ public class MainActivity extends Activity {
     TextView subtitle=new TextView(this);subtitle.setText("إدارة الأسماء والحارات والمُحيلين");subtitle.setTextSize(14);subtitle.setPadding(0,0,0,20);root.addView(subtitle);
     dashboard=new TextView(this);dashboard.setTextSize(17);dashboard.setTextColor(Color.rgb(20,91,76));dashboard.setPadding(18,20,18,20);
     dashboard.setBackgroundColor(Color.rgb(225,241,235));root.addView(dashboard);
+    whisperEngine=new WhisperOfflineEngine(this,new WhisperOfflineEngine.Listener(){
+      public void status(String message){if(voiceStatus!=null)voiceStatus.setText(message);}
+      public void result(String transcript){if(transcript.trim().isEmpty())Toast.makeText(MainActivity.this,"لم يُسمع كلام واضح",Toast.LENGTH_LONG).show();else reviewSpeech(transcript);}
+      public void error(String message){if(voiceStatus!=null)voiceStatus.setText(message);Toast.makeText(MainActivity.this,message,Toast.LENGTH_LONG).show();}
+    });
+    root.addView(button("⬇ تنزيل نموذج الذكاء الصوتي المجاني (مرة واحدة)",()->whisperEngine.downloadModel()));
+    root.addView(button("🎤 تسجيل باستخدام Whisper المحلي (8 ثوانٍ)",()->{
+      if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+        requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},208);return;
+      }
+      whisperEngine.recordAndTranscribe();
+    }));
     voiceButton=button("🎙 ابدأ الإملاء الصوتي",()->toggleVoice());voiceButton.setTextSize(19);root.addView(voiceButton);
     voiceStatus=new TextView(this);voiceStatus.setText("جاهز للاستماع");voiceStatus.setTextSize(14);voiceStatus.setPadding(6,8,6,12);root.addView(voiceStatus);
     TextView tip=new TextView(this);tip.setText("مثال: حارة خطو، من طرف وليد، ثم اذكر الأسماء");tip.setPadding(5,8,5,22);root.addView(tip);
@@ -85,6 +98,7 @@ public class MainActivity extends Activity {
   }
   @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
     super.onRequestPermissionsResult(request,permissions,grants);
+    if(request==208){if(grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)whisperEngine.recordAndTranscribe();else Toast.makeText(this,"يلزم إذن الميكروفون",Toast.LENGTH_LONG).show();return;}
     if(request==MIC_PERMISSION&&grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)toggleVoice();
     else if(request==MIC_PERMISSION)Toast.makeText(this,"يلزم السماح باستخدام الميكروفون",Toast.LENGTH_LONG).show();
   }
@@ -152,7 +166,7 @@ public class MainActivity extends Activity {
     }finally{database.endTransaction();}
     return count;
   }
-  @Override protected void onDestroy(){if(speechEngine!=null)speechEngine.stop();voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
+  @Override protected void onDestroy(){if(speechEngine!=null)speechEngine.stop();if(whisperEngine!=null)whisperEngine.stop();voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
   void refresh(){
     if(rows==null)return;
     if(dashboard!=null)dashboard.setText("الأسماء: "+db.count()+"   |   الحارات: "+db.distinct("area").length+"   |   المُحيلون: "+db.distinct("referrer").length);
