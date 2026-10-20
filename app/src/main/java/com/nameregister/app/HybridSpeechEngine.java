@@ -3,7 +3,7 @@ import android.content.*;import android.os.*;import android.speech.*;import java
 public final class HybridSpeechEngine implements RecognitionListener {
  public interface Listener {void onText(String text);void onStatus(String status);void onStopped();}
  private final Context context;private final Listener listener;private final Handler handler=new Handler(Looper.getMainLooper());
- private SpeechRecognizer recognizer;private boolean running=false,listening=false;private int failures=0;
+ private SpeechRecognizer recognizer;private boolean running=false,listening=false;private int failures=0,lastError=0;
  public HybridSpeechEngine(Context c,Listener l){context=c;listener=l;}
  public void start(){
   if(running)return;running=true;failures=0;
@@ -15,11 +15,12 @@ public final class HybridSpeechEngine implements RecognitionListener {
   }catch(Exception e){stop();listener.onStatus("تعذر تشغيل الصوت");}
  }
  private void listen(){if(!running||listening||recognizer==null)return;Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ar-OM");i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true);try{listening=true;recognizer.startListening(i);}catch(Exception e){listening=false;retry();}}
- private void retry(){if(!running)return;if(++failures>5){stop();listener.onStatus("توقف الاستماع بعد أخطاء متكررة");return;}handler.postDelayed(this::listen,Math.min(1800,failures*350));}
+ private void retry(){if(!running)return;if(++failures>3){int code=lastError;stop();listener.onStatus("تعذر الاستماع: "+errorLabel(code)+" (رمز "+code+"). استخدم زر Whisper المحلي بعد تنزيل النموذج.");return;}handler.postDelayed(this::listen,Math.min(1800,failures*350));}
  public void stop(){running=false;listening=false;handler.removeCallbacksAndMessages(null);if(recognizer!=null){try{recognizer.cancel();recognizer.destroy();}catch(Exception ignored){}recognizer=null;}listener.onStopped();}
  public boolean isRunning(){return running;}
  public void onReadyForSpeech(Bundle b){listener.onStatus("أستمع إليك");}public void onBeginningOfSpeech(){}public void onRmsChanged(float f){}public void onBufferReceived(byte[] b){}public void onEndOfSpeech(){listener.onStatus("أعالج الكلام");}
- public void onError(int error){listening=false;if(!running)return;if(error==SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS){stop();listener.onStatus("إذن الميكروفون غير متاح");return;}retry();}
+ public void onError(int error){lastError=error;listening=false;listener.onStatus("خطأ في التعرف الصوتي: "+errorLabel(error)+" (رمز "+error+")");if(!running)return;if(error==SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS){stop();listener.onStatus("إذن الميكروفون غير متاح");return;}retry();}
  public void onResults(Bundle b){listening=false;failures=0;ArrayList<String> a=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(a!=null&&!a.isEmpty())listener.onText(a.get(0));if(running)handler.postDelayed(this::listen,300);}
+ private static String errorLabel(int code){switch(code){case SpeechRecognizer.ERROR_AUDIO:return "مشكلة بالميكروفون";case SpeechRecognizer.ERROR_CLIENT:return "خلل في خدمة التعرف";case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:return "إذن الميكروفون مرفوض";case SpeechRecognizer.ERROR_NETWORK:return "مشكلة اتصال بالشبكة";case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:return "انتهت مهلة الشبكة";case SpeechRecognizer.ERROR_NO_MATCH:return "لم يتعرف على الكلام";case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:return "خدمة التعرف مشغولة";case SpeechRecognizer.ERROR_SERVER:return "خطأ في خادم التعرف";case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:return "لم يُسمع صوت";default:return "رمز غير معروف";}}
  public void onPartialResults(Bundle b){}public void onEvent(int type,Bundle b){}
 }
