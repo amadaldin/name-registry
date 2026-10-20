@@ -26,6 +26,8 @@ public class MainActivity extends Activity {
   boolean voiceSession = false;
   String activeArea="",activeReferrer="";
   Button voiceButton;
+  HybridSpeechEngine speechEngine;
+  static final int MIC_PERMISSION=207;
   TextView dashboard;
   Button manualSave;
   String reportMode="all",reportFilter="";
@@ -68,33 +70,28 @@ public class MainActivity extends Activity {
     db.add(n,a,r,notes.getText().toString().trim());name.setText("");notes.setText("");refresh();
   }
   void toggleVoice(){
-    if(voiceSession){voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);voiceButton.setText("ابدأ الإملاء المتتابع");return;}
-    voiceSession=true;voiceButton.setText("إيقاف الإملاء");speak();
-  }
-  void speak(){
-    if(!voiceSession)return;
-    try { Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-      i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-      i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ar-OM");
-      i.putExtra(RecognizerIntent.EXTRA_PROMPT,"قل اسماً أو أكثر، ثم انتظر الحفظ");
-      startActivityForResult(i,VOICE);
-    }catch(Exception e){voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");Toast.makeText(this,"التعرف الصوتي غير متاح",Toast.LENGTH_LONG).show();}
-  }
-  @Override protected void onActivityResult(int req,int result,Intent data){
-    super.onActivityResult(req,result,data);
-    if(req!=VOICE)return;
-    if(result!=RESULT_OK||data==null){voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");return;}
-    ArrayList<String> a=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-    if(a!=null&&!a.isEmpty()){
-      reviewSpeech(a.get(0));
+    if(speechEngine!=null&&speechEngine.isRunning()){speechEngine.stop();return;}
+    if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+      requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},MIC_PERMISSION);return;
     }
-    if(voiceSession)voiceHandler.postDelayed(()->speak(),550);
+    if(speechEngine==null)speechEngine=new HybridSpeechEngine(this,new HybridSpeechEngine.Listener(){
+      public void onText(String t){reviewSpeech(t);}
+      public void onStatus(String status){if(voiceButton!=null)voiceButton.setContentDescription(status);}
+      public void onStopped(){if(voiceButton!=null)voiceButton.setText("🎙 ابدأ الإملاء الصوتي");}
+    });
+    speechEngine.start();if(speechEngine.isRunning())voiceButton.setText("■ إيقاف الإملاء");
+  }
+  @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
+    super.onRequestPermissionsResult(request,permissions,grants);
+    if(request==MIC_PERMISSION&&grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)toggleVoice();
+    else if(request==MIC_PERMISSION)Toast.makeText(this,"يلزم السماح باستخدام الميكروفون",Toast.LENGTH_LONG).show();
   }
   void reviewSpeech(String transcript){
+    if(speechEngine!=null&&speechEngine.isRunning())speechEngine.stop();
     final EditText correction=new EditText(this);
     correction.setText(transcript);correction.setMinLines(3);correction.setMaxLines(8);
     new AlertDialog.Builder(this).setTitle("مراجعة الكلام قبل الحفظ")
-      .setMessage("تأكد من الأسماء والحارة والمُحيل. يمكن تعديل الكلام إذا أخطأ التعرف الصوتي.")
+      .setMessage("صحح أي اسم أو حارة غير واضحة قبل الاعتماد")
       .setView(correction)
       .setPositiveButton("اعتماد وحفظ",(d,w)->{
         int count=saveSpeech(correction.getText().toString());
@@ -143,7 +140,7 @@ public class MainActivity extends Activity {
     }finally{database.endTransaction();}
     return count;
   }
-  @Override protected void onDestroy(){voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
+  @Override protected void onDestroy(){if(speechEngine!=null)speechEngine.stop();voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
   void refresh(){
     if(rows==null)return;
     if(dashboard!=null)dashboard.setText("الأسماء: "+db.count()+"   |   الحارات: "+db.distinct("area").length+"   |   المُحيلون: "+db.distinct("referrer").length);
