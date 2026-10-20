@@ -89,6 +89,8 @@ public class MainActivity extends Activity {
   }
   void reviewSpeech(String transcript){
     if(transcript==null||transcript.trim().isEmpty())return;
+    String command=normalizeArabic(transcript);
+    if(command.matches("^(انتهي|انتهى|وقف|وقف التسجيل|ايقاف التسجيل|خلاص|توقف|تم)$")){if(voiceStatus!=null)voiceStatus.setText("تم إيقاف الإملاء");return;}
     if(speechEngine!=null&&speechEngine.isRunning())speechEngine.stop();
     if(voiceStatus!=null)voiceStatus.setText("راجع النص ثم اختر اعتماد وحفظ");
     final EditText correction=new EditText(this);
@@ -113,6 +115,7 @@ public class MainActivity extends Activity {
       for(String raw:parts){
         String item=raw.trim();
         if(item.isEmpty())continue;
+        if(normalizeArabic(item).matches("^(انتهي|وقف|وقف التسجيل|ايقاف التسجيل|خلاص|تم|توقف)$")){voiceSession=false;continue;}
         if(item.matches("^(انتهى|انتهي|وقف|وقف التسجيل|إيقاف التسجيل|خلاص|تم|توقف)$")){
           voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");continue;
         }
