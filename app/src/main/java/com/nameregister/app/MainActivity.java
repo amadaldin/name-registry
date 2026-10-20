@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
   EditText name, area, referrer, notes, search;
   static final int VOICE = 101;
   boolean voiceSession = false;
+  String activeArea="",activeReferrer="";
   Button voiceButton;
   final Handler voiceHandler = new Handler(Looper.getMainLooper());
   @Override public void onCreate(Bundle b) {
@@ -53,6 +54,7 @@ public class MainActivity extends Activity {
   void save(){
     String n=name.getText().toString().trim(), a=area.getText().toString().trim(), r=referrer.getText().toString().trim();
     if(n.isEmpty()){Toast.makeText(this,"الاسم مطلوب",Toast.LENGTH_SHORT).show();return;}
+    if(db.exists(db.getReadableDatabase(),n,a,r)){Toast.makeText(this,"الاسم مسجل مسبقاً",Toast.LENGTH_LONG).show();return;}
     db.add(n,a,r,notes.getText().toString().trim());name.setText("");notes.setText("");refresh();
   }
   void toggleVoice(){
@@ -82,26 +84,38 @@ public class MainActivity extends Activity {
   }
   int saveSpeech(String speech){
     int count=0;
-    String[] parts=speech.split("\\s*(?:[،؛;\\n]+|\\bثم\\b|\\bالاسم التالي\\b|\\bوبعده\\b)\\s*");
+    String[] parts=speech.split("\\s*(?:[،؛;\n]+|\\bثم\\b|\\bالاسم التالي\\b|\\bوبعده\\b)\\s*");
     SQLiteDatabase database=db.getWritableDatabase();
     database.beginTransaction();
     try {
       for(String raw:parts){
         String item=raw.trim();
-        if(item.matches("^(انتهى|انتهي|وقف|وقف التسجيل|خلاص|تم|توقف)$")){voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");continue;}
         if(item.isEmpty())continue;
+        if(item.matches("^(انتهى|انتهي|وقف|وقف التسجيل|إيقاف التسجيل|خلاص|تم|توقف)$")){
+          voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");continue;
+        }
+        java.util.regex.Matcher group=java.util.regex.Pattern.compile("^(?:افتح|نبدأ|ابدأ|الحين|الآن|الاسماء التالية|الأسماء التالية|كل الأسماء التالية)?\\s*(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+(.+)$").matcher(item);
+        if(group.matches()&&!item.matches(".*(?:من طرف|تبع|تابع|ملاحظة).*")){
+          activeArea=group.group(1).trim();area.setText(activeArea);continue;
+        }
+        java.util.regex.Matcher referral=java.util.regex.Pattern.compile("^(?:الأسماء التالية|الاسماء التالية|كل الأسماء التالية|كلهم|هؤلاء|الحين|الآن)?\\s*(?:من طرف من|من طرف|تبع|تابع|عن طريق)\\s+(.+)$").matcher(item);
+        if(referral.matches()){
+          activeReferrer=referral.group(1).trim();referrer.setText(activeReferrer);continue;
+        }
         String a="",r="",note="";
         java.util.regex.Matcher nm=java.util.regex.Pattern.compile("(?:ملاحظة|ملاحظات|تنبيه)\\s*[:：]?\\s*(.+)$").matcher(item);
         if(nm.find()){note=nm.group(1).trim();item=item.substring(0,nm.start()).trim();}
-        java.util.regex.Matcher areaMatch=java.util.regex.Pattern.compile("(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+([^،؛]+?)(?=\\s+(?:من طرف من|من طرف|تبع|تابع|عن طريق|بواسطة)\\s+|$)").matcher(item);
-        if(areaMatch.find()){a=areaMatch.group(1).trim();item=(item.substring(0,areaMatch.start())+" "+item.substring(areaMatch.end())).trim();}
-        java.util.regex.Matcher refMatch=java.util.regex.Pattern.compile("(?:من طرف من|من طرف|تبع|تابع|عن طريق|بواسطة)\\s+(.+)$").matcher(item);
-        if(refMatch.find()){r=refMatch.group(1).trim();item=item.substring(0,refMatch.start()).trim();}
-        item=item.replaceFirst("^(?:سجل|سجل لي|أضف|اضف|اسم)\\s+","").trim();
+        java.util.regex.Matcher am=java.util.regex.Pattern.compile("(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+([^،؛]+?)(?=\\s+(?:من طرف من|من طرف|تبع|تابع|عن طريق|بواسطة)\\s+|$)").matcher(item);
+        if(am.find()){a=am.group(1).trim();item=(item.substring(0,am.start())+" "+item.substring(am.end())).trim();}
+        java.util.regex.Matcher rm=java.util.regex.Pattern.compile("(?:من طرف من|من طرف|تبع|تابع|عن طريق|بواسطة)\\s+(.+)$").matcher(item);
+        if(rm.find()){r=rm.group(1).trim();item=item.substring(0,rm.start()).trim();}
+        item=item.replaceFirst("^(?:سجل لي|سجل|أضف|اضف|اسم)\\s+","").trim();
         if(item.isEmpty())continue;
-        if(a.isEmpty())a=area.getText().toString().trim();
-        if(r.isEmpty())r=referrer.getText().toString().trim();
-        if(!db.exists(database,item,a,r)){database.insert("people",null,db.values(item,a,r,note));count++;}
+        if(a.isEmpty())a=activeArea.isEmpty()?area.getText().toString().trim():activeArea;
+        if(r.isEmpty())r=activeReferrer.isEmpty()?referrer.getText().toString().trim():activeReferrer;
+        if(!db.exists(database,item,a,r)){
+          database.insert("people",null,db.values(item,a,r,note));count++;
+        }
       }
       database.setTransactionSuccessful();
     }finally{database.endTransaction();}
