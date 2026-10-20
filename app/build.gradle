@@ -1,6 +1,10 @@
 plugins { id 'com.android.application' }
 android { namespace 'com.nameregister.app'; compileSdk 35
- defaultConfig { applicationId 'com.nameregister.app'; minSdk 23; targetSdk 35; versionCode 1; versionName '1.0' }
+ defaultConfig { applicationId 'com.nameregister.app'; minSdk 26; targetSdk 35; versionCode 1; versionName '1.0' }
+ ndkVersion '25.2.9519653'
+ defaultConfig { ndk { abiFilters 'arm64-v8a' } }
+ externalNativeBuild { cmake { path file('../vendor/whisper.cpp/examples/whisper.android.java/app/src/main/jni/whisper/CMakeLists.txt') } }
+ sourceSets { main { java.srcDir '../vendor/whisper.cpp/examples/whisper.android.java/app/src/main/java/com/whispercpp/java/whisper' } }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 
