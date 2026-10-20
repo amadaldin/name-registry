@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
   void save(){
     String n=name.getText().toString().trim(), a=area.getText().toString().trim(), r=referrer.getText().toString().trim();
     if(n.isEmpty()){Toast.makeText(this,"الاسم مطلوب",Toast.LENGTH_SHORT).show();return;}
-    if(db.exists(db.getReadableDatabase(),n,a,r)){Toast.makeText(this,"الاسم مسجل مسبقاً",Toast.LENGTH_LONG).show();return;}
+    if(db.existsNormalized(db.getReadableDatabase(),n,a,r)){Toast.makeText(this,"الاسم مسجل مسبقاً",Toast.LENGTH_LONG).show();return;}
     db.add(n,a,r,notes.getText().toString().trim());name.setText("");notes.setText("");refresh();
   }
   void toggleVoice(){
@@ -86,11 +86,23 @@ public class MainActivity extends Activity {
     if(result!=RESULT_OK||data==null){voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");return;}
     ArrayList<String> a=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
     if(a!=null&&!a.isEmpty()){
-      int count=saveSpeech(a.get(0));
-      Toast.makeText(this,"تم حفظ "+count+" اسم",Toast.LENGTH_SHORT).show();
-      refresh();
+      reviewSpeech(a.get(0));
     }
     if(voiceSession)voiceHandler.postDelayed(()->speak(),550);
+  }
+  void reviewSpeech(String transcript){
+    final EditText correction=new EditText(this);
+    correction.setText(transcript);correction.setMinLines(3);correction.setMaxLines(8);
+    new AlertDialog.Builder(this).setTitle("مراجعة الكلام قبل الحفظ")
+      .setMessage("تأكد من الأسماء والحارة والمُحيل. يمكن تعديل الكلام إذا أخطأ التعرف الصوتي.")
+      .setView(correction)
+      .setPositiveButton("اعتماد وحفظ",(d,w)->{
+        int count=saveSpeech(correction.getText().toString());
+        Toast.makeText(this,"تم حفظ "+count+" اسم",Toast.LENGTH_LONG).show();refresh();
+      }).setNegativeButton("إلغاء",null).show();
+  }
+  static String normalizeArabic(String s){
+    return s.replaceAll("[\\u064B-\\u065F\\u0670]","").replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ى','ي').replace('ة','ه').replaceAll("\\s+"," ").trim();
   }
   int saveSpeech(String speech){
     int count=0;
@@ -123,7 +135,7 @@ public class MainActivity extends Activity {
         if(item.isEmpty())continue;
         if(a.isEmpty())a=activeArea.isEmpty()?area.getText().toString().trim():activeArea;
         if(r.isEmpty())r=activeReferrer.isEmpty()?referrer.getText().toString().trim():activeReferrer;
-        if(!db.exists(database,item,a,r)){
+        if(!db.existsNormalized(database,item,a,r)){
           database.insert("people",null,db.values(item,a,r,note));count++;
         }
       }
@@ -264,6 +276,13 @@ public class MainActivity extends Activity {
     @Override public void onCreate(SQLiteDatabase d){d.execSQL("CREATE TABLE people (_id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,area TEXT NOT NULL,referrer TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '')");}
     @Override public void onUpgrade(SQLiteDatabase d,int old,int next){if(old<2)d.execSQL("ALTER TABLE people ADD COLUMN notes TEXT NOT NULL DEFAULT ''");}
     boolean exists(SQLiteDatabase d,String n,String a,String r){Cursor c=d.rawQuery("SELECT 1 FROM people WHERE name=? AND area=? AND referrer=? LIMIT 1",new String[]{n,a,r});try{return c.moveToFirst();}finally{c.close();}}
+    boolean existsNormalized(SQLiteDatabase d,String n,String a,String r){
+      Cursor c=d.rawQuery("SELECT name,area,referrer FROM people",null);
+      try{while(c.moveToNext()){
+        if(normalizeArabic(n).equals(normalizeArabic(c.getString(0)))&&normalizeArabic(a).equals(normalizeArabic(c.getString(1)))&&normalizeArabic(r).equals(normalizeArabic(c.getString(2))))return true;
+      }}finally{c.close();}
+      return false;
+    }
     void add(String n,String a,String r,String note){ContentValues v=values(n,a,r,note);getWritableDatabase().insert("people",null,v);}
     void update(long id,String n,String a,String r,String note){getWritableDatabase().update("people",values(n,a,r,note),"_id=?",new String[]{""+id});}
     void delete(long id){getWritableDatabase().delete("people","_id=?",new String[]{""+id});}
