@@ -51,7 +51,7 @@ public class MainActivity extends Activity {
       public void error(String message){if(voiceStatus!=null)voiceStatus.setText(message);Toast.makeText(MainActivity.this,message,Toast.LENGTH_LONG).show();}
     });
     root.addView(button("⬇ تنزيل نموذج الذكاء الصوتي المجاني (مرة واحدة)",()->whisperEngine.downloadModel()));
-    root.addView(button("🎤 تسجيل باستخدام Whisper المحلي (8 ثوانٍ)",()->{
+    root.addView(button("🎤 تسجيل باستخدام Whisper المحلي (6 ثوانٍ)",()->{
       if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
         requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},208);return;
       }
@@ -169,7 +169,7 @@ public class MainActivity extends Activity {
     }finally{database.endTransaction();}
     return count;
   }
-  @Override protected void onDestroy(){if(speechEngine!=null)speechEngine.stop();if(whisperEngine!=null)whisperEngine.stop();voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
+  @Override protected void onDestroy(){if(speechEngine!=null)speechEngine.stop();if(whisperEngine!=null)whisperEngine.close();voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
   void refresh(){
     if(rows==null)return;
     if(dashboard!=null)dashboard.setText("الأسماء: "+db.count()+"   |   الحارات: "+db.distinct("area").length+"   |   المُحيلون: "+db.distinct("referrer").length);
