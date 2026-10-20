@@ -123,7 +123,7 @@ public class MainActivity extends Activity {
   }
   int saveSpeech(String speech){
     int count=0;
-    String[] parts=speech.split("\\s*(?:[،؛;\n]+|\\bثم\\b|\\bالاسم التالي\\b|\\bوبعده\\b)\\s*");
+    String[] parts=speech.replaceAll("(?U)\\\\s+(?:ثم|وبعده|الاسم التالي|الاسم اللي بعده|وبعدين)\\\\s+", "،").split("[،؛;\\\\n]+");
     SQLiteDatabase database=db.getWritableDatabase();
     database.beginTransaction();
     try {
@@ -135,6 +135,7 @@ public class MainActivity extends Activity {
         if(parsed.action.equals("set_area")){activeArea=parsed.area;area.setText(activeArea);continue;}
         if(parsed.action.equals("set_referrer")){activeReferrer=parsed.referrer;referrer.setText(activeReferrer);continue;}
         if(parsed.action.equals("needs_confirmation"))continue;
+        if(parsed.action.equals("add")){item=parsed.name;}
         if(normalizeArabic(item).matches("^(انتهي|وقف|وقف التسجيل|ايقاف التسجيل|خلاص|تم|توقف)$")){voiceSession=false;continue;}
         if(item.matches("^(انتهى|انتهي|وقف|وقف التسجيل|إيقاف التسجيل|خلاص|تم|توقف)$")){
           voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");continue;
@@ -155,9 +156,11 @@ public class MainActivity extends Activity {
         java.util.regex.Matcher rm=java.util.regex.Pattern.compile("(?:من طرف من|من طرف|تبع|تابع|عن طريق|بواسطة)\\s+(.+)$").matcher(item);
         if(rm.find()){r=rm.group(1).trim();item=item.substring(0,rm.start()).trim();}
         item=item.replaceFirst("^(?:سجل لي|سجل|أضف|اضف|اسم)\\s+","").trim();
-        if(item.isEmpty())continue;
+        if(item.isEmpty()||item.split("\\s+").length<2)continue;
         if(a.isEmpty())a=activeArea.isEmpty()?area.getText().toString().trim():activeArea;
         if(r.isEmpty())r=activeReferrer.isEmpty()?referrer.getText().toString().trim():activeReferrer;
+        if(a.isEmpty())a=parsed.area;
+        if(r.isEmpty())r=parsed.referrer;
         if(!db.existsNormalized(database,item,a,r)){
           database.insert("people",null,db.values(item,a,r,note));count++;
         }
