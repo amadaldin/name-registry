@@ -123,7 +123,7 @@ public class MainActivity extends Activity {
   }
   int saveSpeech(String speech){
     int count=0;
-    String[] parts=speech.replaceAll("(?U)\\\\s+(?:ثم|وبعده|الاسم التالي|الاسم اللي بعده|وبعدين)\\\\s+", "،").split("[،؛;\\\\n]+");
+    String[] parts=speech.replaceAll("(?U)\\s+(?:ثم|وبعده|الاسم التالي|الاسم اللي بعده|وبعدين)\\s+", "،").split("[،؛;\\n]+");
     SQLiteDatabase database=db.getWritableDatabase();
     database.beginTransaction();
     try {
