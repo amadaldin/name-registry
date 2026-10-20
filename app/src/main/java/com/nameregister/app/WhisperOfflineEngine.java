@@ -20,6 +20,7 @@ public final class WhisperOfflineEngine {
  private final Handler main=new Handler(Looper.getMainLooper());
  private volatile boolean cancelled;
  private volatile AudioRecord recorder;
+ private volatile boolean busy=false;
  public WhisperOfflineEngine(Context c,Listener l){context=c.getApplicationContext();listener=l;}
  private void status(String s){main.post(()->listener.status(s));}
  private void error(String s){main.post(()->listener.error(s));}
@@ -49,7 +50,9 @@ public final class WhisperOfflineEngine {
  }
  public void recordAndTranscribe(){
   if(!hasModel()){error("يجب تنزيل نموذج Whisper أولاً");return;}
-  cancelled=false;
+  if(busy){error("التسجيل أو المعالجة قيد التشغيل، انتظر انتهاءها");return;}
+  busy=true;cancelled=false;
+  status("جار تجهيز التسجيل...");
   worker.execute(()->{
    long ptr=0;
    try{
@@ -74,6 +77,7 @@ public final class WhisperOfflineEngine {
     float[] audio=new float[raw.length/2];
     for(int i=0;i<audio.length;i++){int lo=raw[i*2]&255,hi=raw[i*2+1];audio[i]=(short)((hi<<8)|lo)/32768f;}
     status("Whisper يحلل الصوت محلياً...");
+    status("جار تحميل مكتبة Whisper والنموذج...");
     ptr=WhisperLib.initContext(modelFile().getAbsolutePath());
     if(ptr==0)throw new IOException("فشل تحميل النموذج");
     WhisperLib.fullTranscribe(ptr,Math.max(2,Math.min(4,Runtime.getRuntime().availableProcessors())),audio);
@@ -82,7 +86,7 @@ public final class WhisperOfflineEngine {
     String result=text.toString().trim();
     main.post(()->listener.result(result));
    }catch(Throwable e){error("Whisper: "+e.getClass().getSimpleName()+": "+e.getMessage());}
-   finally{if(ptr!=0)WhisperLib.freeContext(ptr);AudioRecord r=recorder;if(r!=null){try{r.stop();}catch(Exception ignored){}r.release();recorder=null;}}
+   finally{if(ptr!=0){try{WhisperLib.freeContext(ptr);}catch(Throwable ignored){}}busy=false;AudioRecord r=recorder;if(r!=null){try{r.stop();}catch(Exception ignored){}r.release();recorder=null;}}
   });
  }
  public void stop(){cancelled=true;AudioRecord r=recorder;if(r!=null){try{r.stop();}catch(Exception ignored){}}}
