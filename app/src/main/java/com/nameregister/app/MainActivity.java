@@ -10,6 +10,13 @@ import android.view.*;
 import android.widget.*;
 import android.text.*;
 import java.util.*;
+import java.io.*;
+import android.graphics.*;
+import android.graphics.pdf.PdfDocument;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextPaint;
+import androidx.core.content.FileProvider;
 
 public class MainActivity extends Activity {
   Db db;
@@ -127,9 +134,56 @@ public class MainActivity extends Activity {
       .setNegativeButton("إلغاء",null).show();
   }
   void share(){
-    StringBuilder sb=new StringBuilder("سجل الأسماء\n");
-    Cursor c=db.list("");try{while(c.moveToNext())sb.append(c.getString(1)).append(" | ").append(c.getString(2)).append(" | ").append(c.getString(3)).append("\n");}finally{c.close();}
-    Intent i=new Intent(Intent.ACTION_SEND);i.setType("text/plain");i.putExtra(Intent.EXTRA_TEXT,sb.toString());startActivity(Intent.createChooser(i,"مشاركة السجل أو طباعته"));
+    PdfDocument pdf=new PdfDocument();
+    try {
+      File folder=new File(getCacheDir(),"reports");if(!folder.exists())folder.mkdirs();
+      File output=new File(folder,"name-register.pdf");
+      TextPaint paint=new TextPaint(3);paint.setColor(Color.BLACK);paint.setTextSize(13);
+      Cursor c=db.list("");
+      PdfDocument.Page page=null;Canvas canvas=null;int y=75,pageNum=0;
+      String lastArea=null;
+      try {
+        while(c.moveToNext()){
+          String n=c.getString(1),a=c.getString(2),r=c.getString(3),note=c.getString(4);
+          String group=a.isEmpty()?"غير محددة":a;
+          if(page==null||y>740){
+            if(page!=null)pdf.finishPage(page);
+            page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,++pageNum).create());
+            canvas=page.getCanvas();canvas.drawColor(Color.WHITE);
+            paint.setTextSize(20);paint.setTypeface(Typeface.DEFAULT_BOLD);
+            drawRtl(canvas,"سجل الأسماء حسب الحارات",paint,35);
+            paint.setTextSize(13);paint.setTypeface(Typeface.DEFAULT);
+            y=90;lastArea=null;
+          }
+          if(!group.equals(lastArea)){
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            y+=drawRtl(canvas,"الحارة: "+group,paint,y)+12;
+            paint.setTypeface(Typeface.DEFAULT);lastArea=group;
+          }
+          String entry=n+(r.isEmpty()?"":" | من طرف: "+r)+(note.isEmpty()?"":" | ملاحظات: "+note);
+          y+=drawRtl(canvas,entry,paint,y)+15;
+        }
+      }finally{c.close();}
+      if(page==null){
+        page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
+        canvas=page.getCanvas();canvas.drawColor(Color.WHITE);
+        drawRtl(canvas,"سجل الأسماء فارغ",paint,70);
+      }
+      pdf.finishPage(page);
+      try(FileOutputStream stream=new FileOutputStream(output)){pdf.writeTo(stream);}
+      android.net.Uri uri=FileProvider.getUriForFile(this,getPackageName()+".files",output);
+      Intent send=new Intent(Intent.ACTION_SEND);send.setType("application/pdf");
+      send.putExtra(Intent.EXTRA_STREAM,uri);send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      startActivity(Intent.createChooser(send,"مشاركة تقرير PDF"));
+    }catch(Exception e){Toast.makeText(this,"تعذر إنشاء PDF: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+    finally{pdf.close();}
+  }
+  int drawRtl(Canvas canvas,String value,TextPaint paint,int y){
+    StaticLayout layout=StaticLayout.Builder.obtain(value,0,value.length(),paint,495)
+      .setAlignment(Layout.Alignment.ALIGN_OPPOSITE)
+      .setTextDirection(android.text.TextDirectionHeuristics.RTL).setIncludePad(false).build();
+    canvas.save();canvas.translate(50,y);layout.draw(canvas);canvas.restore();
+    return layout.getHeight();
   }
   static class Db extends SQLiteOpenHelper {
     Db(Context c){super(c,"names.db",null,2);}
