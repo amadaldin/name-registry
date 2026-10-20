@@ -18,12 +18,13 @@ public final class LocalCommandBrain {
   Matcher from=Pattern.compile("^(?:الاسماء التالية|الأسماء التالية|كلهم|هؤلاء|الحين|الآن)?\\s*(?:من طرف|عن طريق|تبع|تابع)\\s+(.+)$").matcher(text);
   if(from.matches()){referrer=from.group(1).trim();return new Result("set_referrer","",area,referrer);}
   if(canonical.matches("^(امسح|احذف|حذف|صحح|عدل|نقل|انقل)(?:\\s+.*)?$"))return new Result("needs_confirmation",text,area,referrer);
-  Matcher inlineArea=Pattern.compile("(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+(.+)$").matcher(text);
-  String localArea=area;
-  if(inlineArea.find()){localArea=inlineArea.group(1).trim();text=text.substring(0,inlineArea.start()).trim();}
+  // Remove the referrer first: otherwise the area matcher consumes "من طرف ...".
   Matcher inlineRef=Pattern.compile("(?:من طرف|عن طريق|تبع|تابع)\\s+(.+)$").matcher(text);
   String localRef=referrer;
   if(inlineRef.find()){localRef=inlineRef.group(1).trim();text=text.substring(0,inlineRef.start()).trim();}
+  Matcher inlineArea=Pattern.compile("(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+(.+)$").matcher(text);
+  String localArea=area;
+  if(inlineArea.find()){localArea=inlineArea.group(1).trim();text=text.substring(0,inlineArea.start()).trim();}
   text=text.replaceFirst("^(?:سجل لي|سجل|اضف|أضف|اسم)\\s+","").trim();
   if(text.isEmpty()||text.split(" ").length<2)return new Result("needs_confirmation",text,localArea,localRef);
   return new Result("add",text,localArea,localRef);

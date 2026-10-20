@@ -15,6 +15,16 @@ jobs:
           git clone --depth 1 --recurse-submodules https://github.com/ggml-org/whisper.cpp.git vendor/whisper.cpp
           sed -i 's/params.language = "en";/params.language = "ar";/' vendor/whisper.cpp/examples/whisper.android.java/app/src/main/jni/whisper/jni.c
           grep -q 'params.language = "ar";' vendor/whisper.cpp/examples/whisper.android.java/app/src/main/jni/whisper/jni.c
+      - name: Run standalone JVM regression tests
+        run: |
+          mkdir -p /tmp/name-registry-tests
+          javac -encoding UTF-8 -d /tmp/name-registry-tests \
+            app/src/main/java/com/nameregister/app/SpeechEndDetector.java \
+            app/src/test/java/com/nameregister/app/SpeechEndDetectorTest.java \
+            app/src/main/java/com/nameregister/app/LocalCommandBrain.java \
+            app/src/test/java/com/nameregister/app/LocalCommandBrainTest.java
+          java -cp /tmp/name-registry-tests com.nameregister.app.SpeechEndDetectorTest
+          java -cp /tmp/name-registry-tests com.nameregister.app.LocalCommandBrainTest
       - name: Install Android NDK
         run: |
           "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "ndk;25.2.9519653" "cmake;3.22.1"
