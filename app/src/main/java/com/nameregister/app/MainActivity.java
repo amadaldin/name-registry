@@ -16,6 +16,9 @@ public class MainActivity extends Activity {
   LinearLayout root, rows;
   EditText name, area, referrer, search;
   static final int VOICE = 101;
+  boolean voiceSession = false;
+  Button voiceButton;
+  final Handler voiceHandler = new Handler(Looper.getMainLooper());
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
     db = new Db(this);
@@ -26,8 +29,8 @@ public class MainActivity extends Activity {
     name = field("اسم الشخص"); area = field("الحارة"); referrer = field("اسم المُحيل أو المُسجّل");
     LinearLayout buttons = new LinearLayout(this);
     Button save = button("حفظ الاسم", () -> save());
-    Button voice = button("إملاء الاسم بالصوت", () -> speak());
-    buttons.addView(save); buttons.addView(voice); root.addView(buttons);
+    voiceButton = button("ابدأ الإملاء المتتابع", () -> toggleVoice());
+    buttons.addView(save); buttons.addView(voiceButton); root.addView(buttons);
     search = field("بحث بالاسم أو الحارة أو المُحيل");
     search.addTextChangedListener(new TextWatcher(){
       public void beforeTextChanged(CharSequence s,int st,int c,int a){}
@@ -42,23 +45,59 @@ public class MainActivity extends Activity {
   Button button(String text,Runnable action) { Button b=new Button(this); b.setText(text); b.setOnClickListener(v->action.run()); return b; }
   void save(){
     String n=name.getText().toString().trim(), a=area.getText().toString().trim(), r=referrer.getText().toString().trim();
-    if(n.isEmpty()||a.isEmpty()){Toast.makeText(this,"الاسم والحارة مطلوبان",Toast.LENGTH_SHORT).show();return;}
+    if(n.isEmpty()){Toast.makeText(this,"الاسم مطلوب",Toast.LENGTH_SHORT).show();return;}
     db.add(n,a,r);name.setText("");referrer.setText("");refresh();
   }
+  void toggleVoice(){
+    if(voiceSession){voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);voiceButton.setText("ابدأ الإملاء المتتابع");return;}
+    voiceSession=true;voiceButton.setText("إيقاف الإملاء");speak();
+  }
   void speak(){
+    if(!voiceSession)return;
     try { Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
       i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
       i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ar-OM");
-      i.putExtra(RecognizerIntent.EXTRA_PROMPT,"قل الاسم"); startActivityForResult(i,VOICE);
-    }catch(Exception e){Toast.makeText(this,"التعرف الصوتي غير متاح على هذا الهاتف",Toast.LENGTH_LONG).show();}
+      i.putExtra(RecognizerIntent.EXTRA_PROMPT,"قل اسماً أو أكثر، ثم انتظر الحفظ");
+      startActivityForResult(i,VOICE);
+    }catch(Exception e){voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");Toast.makeText(this,"التعرف الصوتي غير متاح",Toast.LENGTH_LONG).show();}
   }
   @Override protected void onActivityResult(int req,int result,Intent data){
     super.onActivityResult(req,result,data);
-    if(req==VOICE&&result==RESULT_OK&&data!=null){
-      ArrayList<String> a=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-      if(a!=null&&!a.isEmpty())name.setText(a.get(0));
+    if(req!=VOICE)return;
+    if(result!=RESULT_OK||data==null){voiceSession=false;voiceButton.setText("ابدأ الإملاء المتتابع");return;}
+    ArrayList<String> a=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+    if(a!=null&&!a.isEmpty()){
+      int count=saveSpeech(a.get(0));
+      Toast.makeText(this,"تم حفظ "+count+" اسم",Toast.LENGTH_SHORT).show();
+      refresh();
     }
+    if(voiceSession)voiceHandler.postDelayed(()->speak(),550);
   }
+  int saveSpeech(String speech){
+    int count=0;
+    String[] parts=speech.split("\\s*(?:[،؛;\\n]+|\\bثم\\b|\\bالاسم التالي\\b|\\bوبعده\\b)\\s*");
+    SQLiteDatabase database=db.getWritableDatabase();
+    database.beginTransaction();
+    try {
+      for(String raw:parts){
+        String item=raw.trim();
+        if(item.isEmpty())continue;
+        String a="",r="";
+        java.util.regex.Matcher areaMatch=java.util.regex.Pattern.compile("(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+([^،؛]+?)(?=\\s+(?:تبع|تابع|عن طريق|بواسطة)\\s+|$)").matcher(item);
+        if(areaMatch.find()){a=areaMatch.group(1).trim();item=(item.substring(0,areaMatch.start())+" "+item.substring(areaMatch.end())).trim();}
+        java.util.regex.Matcher refMatch=java.util.regex.Pattern.compile("(?:تبع|تابع|عن طريق|بواسطة)\\s+(.+)$").matcher(item);
+        if(refMatch.find()){r=refMatch.group(1).trim();item=item.substring(0,refMatch.start()).trim();}
+        item=item.replaceFirst("^(?:سجل|سجل لي|أضف|اضف|اسم)\\s+","").trim();
+        if(item.isEmpty())continue;
+        if(a.isEmpty())a=area.getText().toString().trim();
+        if(r.isEmpty())r=referrer.getText().toString().trim();
+        if(!db.exists(database,item,a,r)){database.insert("people",null,db.values(item,a,r));count++;}
+      }
+      database.setTransactionSuccessful();
+    }finally{database.endTransaction();}
+    return count;
+  }
+  @Override protected void onDestroy(){voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
   void refresh(){
     if(rows==null)return;
     rows.removeAllViews();
@@ -80,7 +119,7 @@ public class MainActivity extends Activity {
     EditText aa=new EditText(this);aa.setText(a);aa.setHint("الحارة");panel.addView(aa);
     EditText rr=new EditText(this);rr.setText(r);rr.setHint("المُحيل");panel.addView(rr);
     new AlertDialog.Builder(this).setTitle("تعديل السجل").setView(panel)
-      .setPositiveButton("حفظ",(d,w)->{if(!nn.getText().toString().trim().isEmpty()&&!aa.getText().toString().trim().isEmpty()){db.update(id,nn.getText().toString().trim(),aa.getText().toString().trim(),rr.getText().toString().trim());refresh();}})
+      .setPositiveButton("حفظ",(d,w)->{if(!nn.getText().toString().trim().isEmpty()){db.update(id,nn.getText().toString().trim(),aa.getText().toString().trim(),rr.getText().toString().trim());refresh();}})
       .setNegativeButton("إلغاء",null).show();
   }
   void share(){
@@ -92,6 +131,7 @@ public class MainActivity extends Activity {
     Db(Context c){super(c,"names.db",null,1);}
     @Override public void onCreate(SQLiteDatabase d){d.execSQL("CREATE TABLE people (_id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,area TEXT NOT NULL,referrer TEXT NOT NULL DEFAULT '')");}
     @Override public void onUpgrade(SQLiteDatabase d,int old,int next){}
+    boolean exists(SQLiteDatabase d,String n,String a,String r){Cursor c=d.rawQuery("SELECT 1 FROM people WHERE name=? AND area=? AND referrer=? LIMIT 1",new String[]{n,a,r});try{return c.moveToFirst();}finally{c.close();}}
     void add(String n,String a,String r){ContentValues v=values(n,a,r);getWritableDatabase().insert("people",null,v);}
     void update(long id,String n,String a,String r){getWritableDatabase().update("people",values(n,a,r),"_id=?",new String[]{""+id});}
     void delete(long id){getWritableDatabase().delete("people","_id=?",new String[]{""+id});}
