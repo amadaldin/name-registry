@@ -11,6 +11,8 @@ public final class LocalCommandBrain {
  public String getArea(){return area;} public String getReferrer(){return referrer;}
  public Result interpret(String spoken){
   String text=spoken==null?"":spoken.trim().replaceAll("\\s+"," ");
+  // Remove a trailing stop command before extracting the neighborhood.
+  text=text.replaceFirst("[\\s،,؛.!؟]+(?:انتهى|انتهي|خلاص|وقف التسجيل|توقف)[\\s،,؛.!؟]*$", "").trim();
   String canonical=text.replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ى','ي');
   if(canonical.matches("(?i)^(خلاص|وقف|توقف|انتهى|انتهي|وقف التسجيل|ايقاف التسجيل)$"))return new Result("stop","","","");
   Matcher group=Pattern.compile("^(?:افتح|ابدأ|نبدأ|الحين|الآن|الاسماء التالية|الأسماء التالية)?\\s*(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+(.+)$").matcher(text);
