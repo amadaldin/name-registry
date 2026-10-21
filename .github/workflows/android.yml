@@ -37,6 +37,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Test Arabic voice command parsing
+        run: |
+          mkdir -p /tmp/name-registry-test
+          javac -encoding UTF-8 -d /tmp/name-registry-test app/src/main/java/com/nameregister/app/LocalCommandBrain.java tests/LocalCommandBrainTest.java
+          java -cp /tmp/name-registry-test LocalCommandBrainTest
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
