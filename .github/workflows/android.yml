@@ -13,8 +13,17 @@ jobs:
       - name: Checkout Whisper native runtime
         run: |
           git clone --depth 1 --recurse-submodules https://github.com/ggml-org/whisper.cpp.git vendor/whisper.cpp
-          sed -i 's/params.language = "en";/params.language = "ar";/' vendor/whisper.cpp/examples/whisper.android.java/app/src/main/jni/whisper/jni.c
-          grep -q 'params.language = "ar";' vendor/whisper.cpp/examples/whisper.android.java/app/src/main/jni/whisper/jni.c
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("vendor/whisper.cpp/examples/whisper.android.java/app/src/main/jni/whisper/jni.c")
+          source = p.read_text()
+          import re
+          updated, count = re.subn(r'params\\.language\\s*=\\s*"[^"]+"\\s*;', 'params.language = "ar";', source)
+          if count != 1:
+              raise SystemExit(f"Expected exactly one Whisper language setting; found {count}")
+          p.write_text(updated)
+          print("Whisper transcription language verified: ar")
+          PY
       - name: Install Android NDK
         run: |
           "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "ndk;25.2.9519653" "cmake;3.22.1"
