@@ -20,6 +20,8 @@ public class LocalCommandBrainTest {
     check(reversed.area.equals("خطو"),"Reverse order area");
     check(reversed.referrer.equals("راشد"),"Reverse order referrer");
     check(brain.interpret("احذف سالم بن حمد").action.equals("needs_confirmation"),"No automatic deletion");
+    check(brain.interpret("انتهى.").action.equals("stop"),"Stop with punctuation");
+    check(brain.interpret("، وقف!").action.equals("stop"),"Stop with leading punctuation");
     System.out.println("LocalCommandBrain tests passed");
   }
 }
