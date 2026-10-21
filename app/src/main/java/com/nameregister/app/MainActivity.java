@@ -69,12 +69,28 @@ public class MainActivity extends Activity {
           public void error(String message){if(voiceStatus!=null)voiceStatus.setText(message);Toast.makeText(MainActivity.this,message,Toast.LENGTH_LONG).show();}
         })).setNegativeButton("إلغاء",null).show();
     }));
-    root.addView(button("🎤 تسجيل باستخدام Qwen3-ASR المحلي (6 ثوانٍ)",()->{
-      if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
-        requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},209);return;
+    Button holdButton=button("اضغط باستمرار للتسجيل، وارفع إصبعك للإيقاف",()->{});
+    holdButton.setOnTouchListener((view,event)->{
+      int action=event.getActionMasked();
+      if(action==MotionEvent.ACTION_DOWN){
+        if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+          requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},209);
+          return true;
+        }
+        if(!qwenEngine.isBusy()){
+          holdButton.setText("جارٍ التسجيل... ارفع إصبعك للإيقاف");
+          qwenEngine.recordAndTranscribe();
+        }
+        return true;
       }
-      qwenEngine.recordAndTranscribe();
-    }));
+      if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL){
+        qwenEngine.stopRecording();
+        holdButton.setText("اضغط باستمرار للتسجيل، وارفع إصبعك للإيقاف");
+        return true;
+      }
+      return true;
+    });
+    root.addView(holdButton);
     root.addView(button("⬇ تنزيل نموذج الذكاء الصوتي المجاني (مرة واحدة)",()->whisperEngine.downloadModel()));
     root.addView(button("🎤 تسجيل باستخدام Whisper المحلي (6 ثوانٍ)",()->{
       if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
