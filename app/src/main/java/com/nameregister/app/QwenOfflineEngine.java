@@ -15,13 +15,16 @@ import java.util.Arrays;
 /** Local Qwen3-ASR microphone adapter. Model assets are installed separately. */
 public final class QwenOfflineEngine implements AsrEngine {
   private static final int SAMPLE_RATE = 16000;
-  private static final int SECONDS = 6;
+  private static final int MAX_SECONDS = 120;
   private static final String MODEL = "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25";
   private final Context context;
   private final Listener listener;
   private final Handler main = new Handler(Looper.getMainLooper());
   private volatile boolean closed = false;
   private volatile boolean busy = false;
+  private volatile boolean recordingRequested = false;
+  public void stopRecording() { recordingRequested = false; }
+  public boolean isBusy() { return busy; }
 
   public QwenOfflineEngine(Context context, Listener listener) {
     this.context = context.getApplicationContext();
@@ -45,6 +48,7 @@ public final class QwenOfflineEngine implements AsrEngine {
       error("يلزم السماح بالميكروفون"); return;
     }
     busy = true;
+    recordingRequested = true;
     new Thread(() -> {
       AudioRecord recorder = null;
       OfflineRecognizer recognizer = null;
@@ -57,19 +61,19 @@ public final class QwenOfflineEngine implements AsrEngine {
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
             Math.max(minimum, SAMPLE_RATE * 2));
         if (recorder.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException("الميكروفون غير متاح");
-        float[] samples = new float[SAMPLE_RATE * SECONDS];
+        float[] samples = new float[SAMPLE_RATE * MAX_SECONDS];
         short[] chunk = new short[2048];
         int offset = 0;
-        status("جاري تسجيل الصوت لمدة 6 ثوانٍ...");
+        status("جارٍ التسجيل... ارفع إصبعك للإيقاف");
         recorder.startRecording();
-        while (offset < samples.length && !closed) {
+        while (offset < samples.length && !closed && recordingRequested) {
           int n = recorder.read(chunk, 0, Math.min(chunk.length, samples.length - offset));
           if (n < 0) throw new IllegalStateException("فشل قراءة الصوت: " + n);
           if (n == 0) continue;
           for (int i = 0; i < n; i++) samples[offset++] = chunk[i] / 32768f;
         }
         recorder.stop();
-        if (closed || offset == 0) return;
+        if (closed || offset < SAMPLE_RATE / 3) { if (!closed) error("التسجيل قصير جداً؛ حاول مجدداً"); return; }
         if (offset != samples.length) samples = Arrays.copyOf(samples, offset);
         status("جاري تحويل الصوت إلى نص محلياً...");
         File dir = modelDirectory();
@@ -94,9 +98,10 @@ public final class QwenOfflineEngine implements AsrEngine {
         if (stream != null) stream.release();
         if (recognizer != null) recognizer.release();
         if (recorder != null) recorder.release();
+        recordingRequested = false;
         busy = false;
       }
     }, "qwen3-asr-worker").start();
   }
-  public void close() { closed = true; }
+  public void close() { closed = true; recordingRequested = false; }
 }
