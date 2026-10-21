@@ -1,6 +1,9 @@
 name: Build sherpa-onnx Android runtime
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/sherpa-android-aar.yml'
 permissions:
   contents: read
 jobs:
@@ -19,9 +22,10 @@ jobs:
         run: |
           curl --fail --location --retry 3 -o sherpa-android.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android.tar.bz2
           tar -xjf sherpa-android.tar.bz2
-          test -d jniLibs/arm64-v8a
+          LIB_DIR=$(find . -type d -path '*/jniLibs/arm64-v8a' -print -quit)
+          test -n "$LIB_DIR"
           mkdir -p sherpa-onnx/android/SherpaOnnxAar/sherpa_onnx/src/main/jniLibs/arm64-v8a
-          cp -av jniLibs/arm64-v8a/. sherpa-onnx/android/SherpaOnnxAar/sherpa_onnx/src/main/jniLibs/arm64-v8a/
+          cp -av "$LIB_DIR"/. sherpa-onnx/android/SherpaOnnxAar/sherpa_onnx/src/main/jniLibs/arm64-v8a/
       - name: Assemble Android AAR
         working-directory: sherpa-onnx/android/SherpaOnnxAar
         run: bash ./gradlew :sherpa_onnx:assembleRelease --no-daemon
