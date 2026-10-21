@@ -7,4 +7,7 @@ android { namespace 'com.nameregister.app'; compileSdk 35
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 
-dependencies { implementation 'androidx.core:core:1.13.1' }
+dependencies {
+ implementation 'androidx.core:core:1.13.1'
+ implementation files('libs/sherpa-onnx.aar')
+}
