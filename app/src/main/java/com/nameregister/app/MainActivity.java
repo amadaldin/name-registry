@@ -29,6 +29,7 @@ public class MainActivity extends Activity {
   HybridSpeechEngine speechEngine;
   WhisperOfflineEngine whisperEngine;
   QwenOfflineEngine qwenEngine;
+  QwenModelInstaller qwenInstaller;
   final LocalCommandBrain localBrain=new LocalCommandBrain();
   static final int MIC_PERMISSION=207;
   TextView dashboard, voiceStatus;
@@ -56,6 +57,18 @@ public class MainActivity extends Activity {
       public void result(String transcript){if(transcript.trim().isEmpty())Toast.makeText(MainActivity.this,"لم يُسمع كلام واضح",Toast.LENGTH_LONG).show();else reviewSpeech(transcript);}
       public void error(String message){if(voiceStatus!=null)voiceStatus.setText(message);Toast.makeText(MainActivity.this,message,Toast.LENGTH_LONG).show();}
     });
+    qwenInstaller=new QwenModelInstaller(this);
+    root.addView(button("⬇ تنزيل نموذج Qwen3-ASR للعمل دون إنترنت (مرة واحدة)",()->{
+      if(qwenEngine.isReady()){Toast.makeText(this,"نموذج Qwen3-ASR مثبت بالفعل",Toast.LENGTH_LONG).show();return;}
+      if(qwenInstaller.isRunning()){Toast.makeText(this,"التنزيل جارٍ بالفعل",Toast.LENGTH_SHORT).show();return;}
+      new AlertDialog.Builder(this).setTitle("تنزيل نموذج Qwen3-ASR")
+        .setMessage("النموذج كبير ويحتاج مساحة تخزين واتصال Wi-Fi في المرة الأولى. بعد التنزيل يعمل التعرف الصوتي دون إنترنت.")
+        .setPositiveButton("ابدأ التنزيل",(d,w)->qwenInstaller.install(new QwenModelInstaller.Listener(){
+          public void status(String message){if(voiceStatus!=null)voiceStatus.setText(message);}
+          public void complete(){if(voiceStatus!=null)voiceStatus.setText("اكتمل تنزيل Qwen3-ASR؛ جاهز للتسجيل");Toast.makeText(MainActivity.this,"اكتمل تنزيل النموذج",Toast.LENGTH_LONG).show();}
+          public void error(String message){if(voiceStatus!=null)voiceStatus.setText(message);Toast.makeText(MainActivity.this,message,Toast.LENGTH_LONG).show();}
+        })).setNegativeButton("إلغاء",null).show();
+    }));
     root.addView(button("🎤 تسجيل باستخدام Qwen3-ASR المحلي (6 ثوانٍ)",()->{
       if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
         requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},209);return;
