@@ -23,12 +23,25 @@ public final class LocalCommandBrain {
   Matcher from=Pattern.compile("^(?:الاسماء التالية|الأسماء التالية|كلهم|هؤلاء|الحين|الآن)?\\s*(?:من طرف|عن طريق|تبع|تابع)\\s+(.+)$").matcher(text);
   if(from.matches()){referrer=from.group(1).trim();return new Result("set_referrer","",area,referrer);}
   if(canonical.matches("^(امسح|احذف|حذف|صحح|عدل|نقل|انقل)(?:\\s+.*)?$"))return new Result("needs_confirmation",text,area,referrer);
-  Matcher inlineArea=Pattern.compile("(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة)\\s+(.+)$").matcher(text);
-  String localArea=area;
-  if(inlineArea.find()){localArea=inlineArea.group(1).trim();text=text.substring(0,inlineArea.start()).trim();}
-  Matcher inlineRef=Pattern.compile("(?:من طرف|عن طريق|تبع|تابع)\\s+(.+)$").matcher(text);
-  String localRef=referrer;
-  if(inlineRef.find()){localRef=inlineRef.group(1).trim();text=text.substring(0,inlineRef.start()).trim();}
+  // Extract area and referrer in either spoken order without inventing names.
+  String localArea=area,localRef=referrer;
+  Pattern qualifier=Pattern.compile("(?:من\\s+طرف|عن\\s+طريق|تبع|تابع|(?:من\\s+)?(?:حارة|الحارة|منطقة|المنطقة))\\s+");
+  Matcher q=qualifier.matcher(text);
+  java.util.ArrayList<Integer> begins=new java.util.ArrayList<>();
+  java.util.ArrayList<Integer> ends=new java.util.ArrayList<>();
+  java.util.ArrayList<String> labels=new java.util.ArrayList<>();
+  while(q.find()){begins.add(q.start());ends.add(q.end());labels.add(q.group());}
+  if(!begins.isEmpty()){
+    String rawName=text.substring(0,begins.get(0)).trim();
+    for(int i=0;i<begins.size();i++){
+      String value=text.substring(ends.get(i),i+1<begins.size()?begins.get(i+1):text.length()).trim();
+      value=value.replaceAll("^[،,؛:]+|[،,؛:]+$","").trim();
+      if(value.isEmpty())continue;
+      if(labels.get(i).matches("^(?:من\\s+طرف|عن\\s+طريق|تبع|تابع)\\s+$"))localRef=value;
+      else localArea=value;
+    }
+    text=rawName;
+  }
   text=text.replaceFirst("^(?:اكتب لي|اكتب|سجل لي|سجل|اضف|أضف|اسم)\\s+","").trim();
   if(text.isEmpty()||text.split(" ").length<2)return new Result("needs_confirmation",text,localArea,localRef);
   return new Result("add",text,localArea,localRef);
