@@ -11,6 +11,9 @@ public final class LocalCommandBrain {
  public String getArea(){return area;} public String getReferrer(){return referrer;}
  public Result interpret(String spoken){
   String text=spoken==null?"":spoken.trim().replaceAll("\\s+"," ");
+  // A standalone stop command must remain actionable.
+  String originalCanonical=text.replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ى','ي');
+  if(originalCanonical.matches("^(خلاص|وقف|توقف|انتهي|وقف التسجيل|ايقاف التسجيل)$"))return new Result("stop","","","");
   // Remove a trailing stop command before extracting the neighborhood.
   text=text.replaceFirst("[\\s،,؛.!؟]+(?:انتهى|انتهي|خلاص|وقف التسجيل|توقف)[\\s،,؛.!؟]*$", "").trim();
   String canonical=text.replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ى','ي');
@@ -26,7 +29,7 @@ public final class LocalCommandBrain {
   Matcher inlineRef=Pattern.compile("(?:من طرف|عن طريق|تبع|تابع)\\s+(.+)$").matcher(text);
   String localRef=referrer;
   if(inlineRef.find()){localRef=inlineRef.group(1).trim();text=text.substring(0,inlineRef.start()).trim();}
-  text=text.replaceFirst("^(?:سجل لي|سجل|اضف|أضف|اسم)\\s+","").trim();
+  text=text.replaceFirst("^(?:اكتب لي|اكتب|سجل لي|سجل|اضف|أضف|اسم)\\s+","").trim();
   if(text.isEmpty()||text.split(" ").length<2)return new Result("needs_confirmation",text,localArea,localRef);
   return new Result("add",text,localArea,localRef);
  }
