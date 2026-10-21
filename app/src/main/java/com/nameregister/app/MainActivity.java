@@ -28,6 +28,7 @@ public class MainActivity extends Activity {
   Button voiceButton;
   HybridSpeechEngine speechEngine;
   WhisperOfflineEngine whisperEngine;
+  QwenOfflineEngine qwenEngine;
   final LocalCommandBrain localBrain=new LocalCommandBrain();
   static final int MIC_PERMISSION=207;
   TextView dashboard, voiceStatus;
@@ -50,6 +51,17 @@ public class MainActivity extends Activity {
       public void result(String transcript){if(transcript.trim().isEmpty())Toast.makeText(MainActivity.this,"لم يُسمع كلام واضح",Toast.LENGTH_LONG).show();else reviewSpeech(transcript);}
       public void error(String message){if(voiceStatus!=null)voiceStatus.setText(message);Toast.makeText(MainActivity.this,message,Toast.LENGTH_LONG).show();}
     });
+    qwenEngine=new QwenOfflineEngine(this,new AsrEngine.Listener(){
+      public void status(String message){if(voiceStatus!=null)voiceStatus.setText(message);}
+      public void result(String transcript){if(transcript.trim().isEmpty())Toast.makeText(MainActivity.this,"لم يُسمع كلام واضح",Toast.LENGTH_LONG).show();else reviewSpeech(transcript);}
+      public void error(String message){if(voiceStatus!=null)voiceStatus.setText(message);Toast.makeText(MainActivity.this,message,Toast.LENGTH_LONG).show();}
+    });
+    root.addView(button("🎤 تسجيل باستخدام Qwen3-ASR المحلي (6 ثوانٍ)",()->{
+      if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+        requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},209);return;
+      }
+      qwenEngine.recordAndTranscribe();
+    }));
     root.addView(button("⬇ تنزيل نموذج الذكاء الصوتي المجاني (مرة واحدة)",()->whisperEngine.downloadModel()));
     root.addView(button("🎤 تسجيل باستخدام Whisper المحلي (6 ثوانٍ)",()->{
       if(android.os.Build.VERSION.SDK_INT>=23&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
@@ -98,6 +110,7 @@ public class MainActivity extends Activity {
   }
   @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
     super.onRequestPermissionsResult(request,permissions,grants);
+    if(request==209){if(grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)qwenEngine.recordAndTranscribe();else Toast.makeText(this,"يلزم إذن الميكروفون",Toast.LENGTH_LONG).show();return;}
     if(request==208){if(grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)whisperEngine.recordAndTranscribe();else Toast.makeText(this,"يلزم إذن الميكروفون",Toast.LENGTH_LONG).show();return;}
     if(request==MIC_PERMISSION&&grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)toggleVoice();
     else if(request==MIC_PERMISSION)Toast.makeText(this,"يلزم السماح باستخدام الميكروفون",Toast.LENGTH_LONG).show();
@@ -169,7 +182,7 @@ public class MainActivity extends Activity {
     }finally{database.endTransaction();}
     return count;
   }
-  @Override protected void onDestroy(){if(speechEngine!=null)speechEngine.stop();if(whisperEngine!=null)whisperEngine.close();voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
+  @Override protected void onDestroy(){if(speechEngine!=null)speechEngine.stop();if(whisperEngine!=null)whisperEngine.close();if(qwenEngine!=null)qwenEngine.close();voiceSession=false;voiceHandler.removeCallbacksAndMessages(null);db.close();super.onDestroy();}
   void refresh(){
     if(rows==null)return;
     if(dashboard!=null)dashboard.setText("الأسماء: "+db.count()+"   |   الحارات: "+db.distinct("area").length+"   |   المُحيلون: "+db.distinct("referrer").length);
