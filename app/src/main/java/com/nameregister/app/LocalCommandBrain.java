@@ -11,6 +11,8 @@ public final class LocalCommandBrain {
  public String getArea(){return area;} public String getReferrer(){return referrer;}
  public Result interpret(String spoken){
   String text=spoken==null?"":spoken.trim().replaceAll("\\s+"," ");
+  // Speech recognizers sometimes append sentence punctuation to commands.
+  text=text.replaceAll("^[،,؛.!؟]+|[،,؛.!؟]+$", "").trim();
   // A standalone stop command must remain actionable.
   String originalCanonical=text.replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ى','ي');
   if(originalCanonical.matches("^(خلاص|وقف|توقف|انتهي|وقف التسجيل|ايقاف التسجيل)$"))return new Result("stop","","","");
