@@ -78,6 +78,7 @@ public final class WhisperOfflineEngine {
     byte[] raw=pcm.toByteArray();
     float[] audio=new float[raw.length/2];
     for(int i=0;i<audio.length;i++){int lo=raw[i*2]&255,hi=raw[i*2+1];audio[i]=(short)((hi<<8)|lo)/32768f;}
+    long inferenceStart=android.os.SystemClock.elapsedRealtime();
     status("Whisper يحلل الصوت محلياً...");
     status("جار تحميل مكتبة Whisper والنموذج...");
     if(cachedContext==0)cachedContext=WhisperLib.initContext(modelFile().getAbsolutePath());
@@ -86,6 +87,8 @@ public final class WhisperOfflineEngine {
     WhisperLib.fullTranscribe(ptr,Math.max(2,Math.min(4,Runtime.getRuntime().availableProcessors())),audio);
     StringBuilder text=new StringBuilder();
     for(int i=0;i<WhisperLib.getTextSegmentCount(ptr);i++)text.append(WhisperLib.getTextSegment(ptr,i)).append(' ');
+    long inferenceMs=android.os.SystemClock.elapsedRealtime()-inferenceStart;
+    status("زمن التحليل: "+(inferenceMs/1000.0)+" ثانية");
     String result=text.toString().trim();
     main.post(()->listener.result(result));
    }catch(Throwable e){error("Whisper: "+e.getClass().getSimpleName()+": "+e.getMessage());}
