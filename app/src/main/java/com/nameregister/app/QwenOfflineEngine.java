@@ -8,7 +8,6 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.Looper;
-import com.k2fsa.sherpa.onnx.*;
 import java.io.File;
 import java.util.Arrays;
 
@@ -51,8 +50,6 @@ public final class QwenOfflineEngine implements AsrEngine {
     recordingRequested = true;
     new Thread(() -> {
       AudioRecord recorder = null;
-      OfflineRecognizer recognizer = null;
-      OfflineStream stream = null;
       try {
         int minimum = AudioRecord.getMinBufferSize(SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
@@ -76,27 +73,11 @@ public final class QwenOfflineEngine implements AsrEngine {
         if (closed || offset < SAMPLE_RATE / 3) { if (!closed) error("التسجيل قصير جداً؛ حاول مجدداً"); return; }
         if (offset != samples.length) samples = Arrays.copyOf(samples, offset);
         status("جاري تحويل الصوت إلى نص محلياً...");
-        File dir = modelDirectory();
-        OfflineQwen3AsrModelConfig qwen = OfflineQwen3AsrModelConfig.builder()
-          .setConvFrontend(new File(dir,"conv_frontend.onnx").getAbsolutePath())
-          .setEncoder(new File(dir,"encoder.int8.onnx").getAbsolutePath())
-          .setDecoder(new File(dir,"decoder.int8.onnx").getAbsolutePath())
-          .setTokenizer(new File(dir,"tokenizer").getAbsolutePath())
-          .build();
-        OfflineModelConfig model = OfflineModelConfig.builder()
-          .setQwen3Asr(qwen).setNumThreads(4).setProvider("cpu").setDebug(false).build();
-        recognizer = new OfflineRecognizer(OfflineRecognizerConfig.builder()
-          .setOfflineModelConfig(model).build());
-        stream = recognizer.createStream();
-        stream.acceptWaveform(samples, SAMPLE_RATE);
-        recognizer.decode(stream);
-        String transcript = recognizer.getResult(stream).getText();
+        String transcript = QwenBridge.transcribe(modelDirectory(), samples, SAMPLE_RATE);
         main.post(() -> { if (!closed) listener.result(transcript == null ? "" : transcript.trim()); });
       } catch (Exception | LinkageError ex) {
         error("تعذر تشغيل Qwen3-ASR: " + ex.getMessage());
       } finally {
-        if (stream != null) stream.release();
-        if (recognizer != null) recognizer.release();
         if (recorder != null) recorder.release();
         recordingRequested = false;
         busy = false;
