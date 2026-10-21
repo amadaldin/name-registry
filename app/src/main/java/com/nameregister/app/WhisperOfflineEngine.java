@@ -11,8 +11,10 @@ import java.io.*;
 import java.net.*;
 import java.util.concurrent.*;
 /** Records one utterance and transcribes on device using Whisper.cpp, never uploads audio. */
-public final class WhisperOfflineEngine {
- public interface Listener { void status(String s); void result(String s); void error(String s); }
+public final class WhisperOfflineEngine implements AsrEngine {
+ public interface Listener extends AsrEngine.Listener {}
+ @Override public String id(){return "whisper-tiny";}
+ @Override public boolean isReady(){return hasModel();}
  private static final String MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin";
  private final Context context;
  private final Listener listener;
