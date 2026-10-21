@@ -9,5 +9,6 @@ android { namespace 'com.nameregister.app'; compileSdk 35
 
 dependencies {
  implementation 'androidx.core:core:1.13.1'
+ implementation 'org.apache.commons:commons-compress:1.27.1'
  implementation files('libs/sherpa-onnx.aar')
 }
