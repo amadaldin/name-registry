@@ -136,8 +136,8 @@ public class MainActivity extends Activity {
     if(voiceStatus!=null)voiceStatus.setText("راجع النص ثم اختر اعتماد وحفظ");
     final EditText correction=new EditText(this);
     correction.setText(transcript);correction.setMinLines(3);correction.setMaxLines(8);
-    new AlertDialog.Builder(this).setTitle("مراجعة الكلام قبل الحفظ")
-      .setMessage("صحح أي اسم أو حارة غير واضحة قبل الاعتماد")
+    new AlertDialog.Builder(this).setTitle("مراجعة الأسماء قبل الحفظ")
+      .setMessage("يمكنك إملاء عدة أسماء في تسجيل واحد. افصل بينها بكلمة ثم أو الاسم التالي، أو بسطر جديد. راجع كل اسم قبل الحفظ.")
       .setView(correction)
       .setPositiveButton("اعتماد وحفظ",(d,w)->{
         int count=saveSpeech(correction.getText().toString());
@@ -149,7 +149,7 @@ public class MainActivity extends Activity {
   }
   int saveSpeech(String speech){
     int count=0;
-    String[] parts=speech.replaceAll("(?U)\\s+(?:ثم|وبعده|الاسم التالي|الاسم اللي بعده|وبعدين)\\s+", "،").split("[،؛;\\n]+");
+    java.util.List<String> parts=BatchNameParser.split(speech);
     SQLiteDatabase database=db.getWritableDatabase();
     database.beginTransaction();
     try {
