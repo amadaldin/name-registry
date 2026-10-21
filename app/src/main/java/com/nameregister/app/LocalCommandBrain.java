@@ -44,7 +44,14 @@ public final class LocalCommandBrain {
     }
     text=rawName;
   }
+  // Strip conversational filler only at the beginning; preserve the actual name.
+  text=text.replaceFirst("^(?:(?:لو سمحت|الله يخليك|يا اخي|يا خوي|يا حبيبي|ممكن|ابغاك|اريدك|بغيتك|عندي|اسمع|شوف|طيب|زين|الحين|الان|اليوم|هذا|هذي|الشخص|واحد)\\s+)+","").trim();
+  text=text.replaceFirst("^(?:تكتب لي|تسجل لي|تضيف لي|تكتب|تسجل|تضيف|اكتب عندك|حط عندك|حط لي|دون عندك|قيد عندك|سجل عندك)\\s+","").trim();
+  text=text.replaceFirst("^(?:اسم(?:ه|ها| الشخص)?|الاسم(?: هو| الكامل)?|يدعى|يسمى|اسمه|هذا اسمه)\\s*[:：-]?\\s+","").trim();
   text=text.replaceFirst("^(?:اكتب لي|اكتب|سجل لي|سجل|اضف|أضف|اسم)\\s+","").trim();
+  text=text.replaceFirst("^(?:اسم(?:ه|ها)?|الاسم|هو)\\s*[:：-]?\\s+","").trim();
+  text=text.replaceFirst("[\\s،,؛.!؟]+(?:تمام|شكرا|وشكرا|الله يعطيك العافية|بس|هذا هو|اوكي)[\\s،,؛.!؟]*$","").trim();
+  text=text.replaceAll("^[،,؛:.-]+|[،,؛:.-]+$","").trim();
   if(text.isEmpty()||text.split(" ").length<2)return new Result("needs_confirmation",text,localArea,localRef);
   return new Result("add",text,localArea,localRef);
  }
